@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>PintApp needs access to your photo library to add clothing photos.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>PintApp needs permission to save photos to your library.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>PintApp needs camera access to take photos of your clothing.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
