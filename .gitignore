@@ -1,6 +1,28 @@
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Flutter metadata (auto-generated)
+.metadata
+
 # Miscellaneous
 *.class
-*.lock
 *.log
 *.pyc
 *.swp
