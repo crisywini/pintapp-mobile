@@ -126,12 +126,12 @@ class OutfitDetailScreen extends ConsumerWidget {
   Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete outfit?'),
         content: const Text('The individual items won\'t be affected.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Cancel'),
           ),
           FilledButton(
@@ -141,7 +141,7 @@ class OutfitDetailScreen extends ConsumerWidget {
               minimumSize: Size.zero,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             ),
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Delete'),
           ),
         ],

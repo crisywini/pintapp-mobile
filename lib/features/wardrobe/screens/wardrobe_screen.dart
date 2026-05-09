@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/theme/app_theme.dart';
 import '../providers/wardrobe_provider.dart';
 import '../widgets/item_card.dart';
 
@@ -108,6 +109,17 @@ class _CategoryChip extends StatelessWidget {
         selected: selected,
         onSelected: (_) => onTap(),
         showCheckmark: false,
+        // Explicit label color so M3's internal state logic can't override it
+        labelStyle: TextStyle(
+          fontSize: 13,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+          color: selected ? Colors.white : Colors.grey[800],
+        ),
+        selectedColor: AppTheme.babyBlue,
+        backgroundColor: Colors.white,
+        side: BorderSide(
+          color: selected ? AppTheme.babyBlue : Colors.grey[300]!,
+        ),
       ),
     );
   }

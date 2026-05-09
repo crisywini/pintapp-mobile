@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../data/models/clothing_item.dart';
+import '../../../shared/widgets/color_dot.dart';
 
 class ItemCard extends StatelessWidget {
   final ClothingItem item;
@@ -11,13 +12,11 @@ class ItemCard extends StatelessWidget {
 
   const ItemCard({super.key, required this.item, required this.onTap});
 
-  Color _colorValue() {
-    return AppConstants.colors
-        .firstWhere(
-          (c) => c.name == item.color,
-          orElse: () => AppConstants.colors.first,
-        )
-        .value;
+  AppColor _appColor() {
+    return AppConstants.colors.firstWhere(
+      (c) => c.name == item.color,
+      orElse: () => AppConstants.colors.first,
+    );
   }
 
   @override
@@ -51,7 +50,7 @@ class ItemCard extends StatelessWidget {
                         fit: BoxFit.cover,
                         width: double.infinity,
                       )
-                    : _PlaceholderPhoto(color: _colorValue()),
+                    : _PlaceholderPhoto(color: _appColor().value),
               ),
             ),
 
@@ -71,15 +70,7 @@ class ItemCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: _colorValue(),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.grey[300]!),
-                        ),
-                      ),
+                      ColorDot(appColor: _appColor(), size: 10),
                       const SizedBox(width: 5),
                       Text(
                         item.occasion,

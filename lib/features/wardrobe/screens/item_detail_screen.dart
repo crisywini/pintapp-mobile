@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../shared/widgets/color_dot.dart';
 import '../providers/wardrobe_provider.dart';
 
 class ItemDetailScreen extends ConsumerWidget {
@@ -23,17 +24,15 @@ class ItemDetailScreen extends ConsumerWidget {
       );
     }
 
-    final colorValue = AppConstants.colors
-        .firstWhere(
-          (c) => c.name == item.color,
-          orElse: () => AppConstants.colors.first,
-        )
-        .value;
+    final appColor = AppConstants.colors.firstWhere(
+      (c) => c.name == item.color,
+      orElse: () => AppConstants.colors.first,
+    );
 
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // Large photo header
+          // Large photo header — back button only, no icons on top of photo
           SliverAppBar(
             expandedHeight: 360,
             pinned: true,
@@ -41,28 +40,16 @@ class ItemDetailScreen extends ConsumerWidget {
               background: item.photoPath != null
                   ? Image.file(File(item.photoPath!), fit: BoxFit.cover)
                   : Container(
-                      color: colorValue.withAlpha(40),
+                      color: appColor.value.withAlpha(40),
                       child: Center(
                         child: Icon(
                           Icons.checkroom_outlined,
                           size: 80,
-                          color: colorValue.withAlpha(100),
+                          color: appColor.value.withAlpha(100),
                         ),
                       ),
                     ),
             ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.edit_outlined),
-                tooltip: 'Edit',
-                onPressed: () => context.push('/wardrobe/$itemId/edit'),
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline),
-                tooltip: 'Delete',
-                onPressed: () => _confirmDelete(context, ref),
-              ),
-            ],
           ),
 
           SliverToBoxAdapter(
@@ -84,17 +71,44 @@ class ItemDetailScreen extends ConsumerWidget {
                     label: 'Category',
                     value: item.category,
                   ),
-                  _DetailRow(
-                    icon: Icons.circle,
-                    label: 'Color',
-                    value: item.color,
-                    iconColor: colorValue,
-                  ),
+                  _ColorRow(appColor: appColor, label: item.color),
                   _DetailRow(
                     icon: Icons.event_outlined,
                     label: 'Occasion',
                     value: item.occasion,
                   ),
+
+                  const SizedBox(height: 12),
+                  const Divider(),
+                  const SizedBox(height: 12),
+
+                  // Edit button
+                  FilledButton.icon(
+                    onPressed: () => context.push('/wardrobe/$itemId/edit'),
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Edit Item'),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Delete button
+                  OutlinedButton.icon(
+                    onPressed: () => _confirmDelete(context, ref),
+                    icon: Icon(Icons.delete_outline, color: Colors.red[700]),
+                    label: Text(
+                      'Delete Item',
+                      style: TextStyle(color: Colors.red[700]),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 52),
+                      side: BorderSide(color: Colors.red[300]!),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
                 ],
               ),
             ),
@@ -107,12 +121,12 @@ class ItemDetailScreen extends ConsumerWidget {
   Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete item?'),
         content: const Text('This will remove the item from your wardrobe.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Cancel'),
           ),
           FilledButton(
@@ -122,7 +136,7 @@ class ItemDetailScreen extends ConsumerWidget {
               minimumSize: Size.zero,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             ),
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Delete'),
           ),
         ],
@@ -136,17 +150,48 @@ class ItemDetailScreen extends ConsumerWidget {
   }
 }
 
+class _ColorRow extends StatelessWidget {
+  final AppColor appColor;
+  final String label;
+  const _ColorRow({required this.appColor, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        children: [
+          ColorDot(appColor: appColor, size: 20),
+          const SizedBox(width: 12),
+          Text(
+            'Color',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+          const Spacer(),
+          Text(
+            label,
+            style: Theme.of(context)
+                .textTheme
+                .bodyMedium
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _DetailRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  final Color? iconColor;
 
   const _DetailRow({
     required this.icon,
     required this.label,
     required this.value,
-    this.iconColor,
   });
 
   @override
@@ -155,7 +200,7 @@ class _DetailRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: iconColor ?? Colors.grey[500]),
+          Icon(icon, size: 20, color: Colors.grey[500]),
           const SizedBox(width: 12),
           Text(
             label,
