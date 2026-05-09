@@ -20,7 +20,7 @@ class OutfitCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final photos = items.where((i) => i.photoPath != null).take(4).toList();
+    final itemPhotos = items.where((i) => i.photoPath != null).take(4).toList();
 
     return GestureDetector(
       onTap: onTap,
@@ -39,11 +39,17 @@ class OutfitCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Photo mosaic
+            // Outfit photo takes priority; fall back to item collage
             Expanded(
               child: ClipRRect(
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                child: _PhotoMosaic(photos: photos),
+                child: outfit.photoPaths.isNotEmpty
+                    ? Image.file(
+                        File(outfit.photoPaths.first),
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                      )
+                    : _PhotoMosaic(photos: itemPhotos),
               ),
             ),
 

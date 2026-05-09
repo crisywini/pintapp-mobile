@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../data/models/clothing_item.dart';
@@ -10,7 +11,10 @@ import '../../wardrobe/providers/wardrobe_provider.dart';
 import '../providers/outfit_provider.dart';
 
 class CreateOutfitScreen extends ConsumerStatefulWidget {
-  const CreateOutfitScreen({super.key});
+  final String? editOutfitId;
+  const CreateOutfitScreen({super.key, this.editOutfitId});
+
+  bool get isEditing => editOutfitId != null;
 
   @override
   ConsumerState<CreateOutfitScreen> createState() => _CreateOutfitScreenState();
@@ -19,13 +23,47 @@ class CreateOutfitScreen extends ConsumerStatefulWidget {
 class _CreateOutfitScreenState extends ConsumerState<CreateOutfitScreen> {
   final _nameController = TextEditingController();
   bool _saving = false;
+  bool _loaded = false;
+
+  // Photo state (edit mode only)
+  List<String> _existingPhotoPaths = [];
+  final Set<String> _removedPhotoPaths = {};
+  final List<XFile> _newPhotos = [];
 
   @override
   void initState() {
     super.initState();
-    // Reset any leftover draft from a previous session
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(draftOutfitProvider.notifier).reset();
+      if (widget.isEditing) {
+        _loadExistingOutfit();
+      } else {
+        ref.read(draftOutfitProvider.notifier).reset();
+        setState(() => _loaded = true);
+      }
+    });
+  }
+
+  void _loadExistingOutfit() {
+    final outfit = ref
+        .read(outfitProvider)
+        .where((o) => o.id == widget.editOutfitId)
+        .firstOrNull;
+
+    if (outfit == null) return;
+
+    _nameController.text = outfit.name;
+
+    // Pre-populate category slots with the outfit's items
+    final wardrobe = ref.read(wardrobeProvider);
+    final items = outfit.itemIds
+        .map((id) => wardrobe.where((i) => i.id == id).firstOrNull)
+        .whereType<ClothingItem>()
+        .toList();
+    ref.read(draftOutfitProvider.notifier).loadFromItems(items);
+
+    setState(() {
+      _existingPhotoPaths = List.from(outfit.photoPaths);
+      _loaded = true;
     });
   }
 
@@ -33,6 +71,50 @@ class _CreateOutfitScreenState extends ConsumerState<CreateOutfitScreen> {
   void dispose() {
     _nameController.dispose();
     super.dispose();
+  }
+
+  List<String> get _keepPhotoPaths =>
+      _existingPhotoPaths.where((p) => !_removedPhotoPaths.contains(p)).toList();
+
+  Future<void> _pickPhoto() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take a photo'),
+              onTap: () => Navigator.pop(sheetCtx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from gallery'),
+              onTap: () => Navigator.pop(sheetCtx, ImageSource.gallery),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+    final picked =
+        await ImagePicker().pickImage(source: source, imageQuality: 85);
+    if (picked != null) setState(() => _newPhotos.add(picked));
   }
 
   Future<void> _save() async {
@@ -54,28 +136,47 @@ class _CreateOutfitScreenState extends ConsumerState<CreateOutfitScreen> {
 
     setState(() => _saving = true);
 
-    await ref.read(outfitProvider.notifier).saveOutfit(
-          name: name,
-          itemIds: draft.selectedItemIds,
-        );
+    if (widget.isEditing) {
+      await ref.read(outfitProvider.notifier).updateOutfit(
+            id: widget.editOutfitId!,
+            name: name,
+            itemIds: draft.selectedItemIds,
+            keepPhotoPaths: _keepPhotoPaths,
+            removedPhotoPaths: _removedPhotoPaths.toList(),
+            newPhotos: _newPhotos,
+          );
+    } else {
+      await ref.read(outfitProvider.notifier).saveOutfit(
+            name: name,
+            itemIds: draft.selectedItemIds,
+          );
+      draft.reset();
+    }
 
-    draft.reset();
     if (mounted) context.pop();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (!_loaded) {
+      return Scaffold(
+        appBar: AppBar(title: Text(widget.isEditing ? 'Edit Outfit' : 'New Outfit')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final draft = ref.watch(draftOutfitProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('New Outfit'),
+        title: Text(widget.isEditing ? 'Edit Outfit' : 'New Outfit'),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: TextButton(
               onPressed: _saving ? null : _save,
-              child: const Text('Save', style: TextStyle(fontWeight: FontWeight.w600)),
+              child: const Text('Save',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
             ),
           ),
         ],
@@ -92,6 +193,28 @@ class _CreateOutfitScreenState extends ConsumerState<CreateOutfitScreen> {
             ),
             textCapitalization: TextCapitalization.sentences,
           ),
+
+          // ── Photos (edit mode only) ─────────────────────────────────────
+          if (widget.isEditing) ...[
+            const SizedBox(height: 28),
+            Text(
+              'Photos',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 12),
+            _PhotoStrip(
+              existingPaths: _keepPhotoPaths,
+              newPhotos: _newPhotos,
+              onRemoveExisting: (path) =>
+                  setState(() => _removedPhotoPaths.add(path)),
+              onRemoveNew: (index) =>
+                  setState(() => _newPhotos.removeAt(index)),
+              onAdd: _pickPhoto,
+            ),
+          ],
 
           const SizedBox(height: 28),
 
@@ -126,7 +249,7 @@ class _CreateOutfitScreenState extends ConsumerState<CreateOutfitScreen> {
                     width: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Save Outfit'),
+                : Text(widget.isEditing ? 'Update Outfit' : 'Save Outfit'),
           ),
         ],
       ),
@@ -155,6 +278,111 @@ class _CreateOutfitScreenState extends ConsumerState<CreateOutfitScreen> {
     if (picked != null) {
       ref.read(draftOutfitProvider.notifier).selectItem(picked);
     }
+  }
+}
+
+// ── Photo strip (edit mode) ───────────────────────────────────────────────────
+
+class _PhotoStrip extends StatelessWidget {
+  final List<String> existingPaths;
+  final List<XFile> newPhotos;
+  final ValueChanged<String> onRemoveExisting;
+  final ValueChanged<int> onRemoveNew;
+  final VoidCallback onAdd;
+
+  const _PhotoStrip({
+    required this.existingPaths,
+    required this.newPhotos,
+    required this.onRemoveExisting,
+    required this.onRemoveNew,
+    required this.onAdd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final total = existingPaths.length + newPhotos.length;
+
+    return SizedBox(
+      height: 100,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          // Existing saved photos
+          ...existingPaths.map(
+            (path) => _PhotoThumb(
+              child: Image.file(File(path), fit: BoxFit.cover),
+              onRemove: () => onRemoveExisting(path),
+            ),
+          ),
+
+          // Newly picked (not yet saved)
+          ...List.generate(
+            newPhotos.length,
+            (i) => _PhotoThumb(
+              child: Image.file(File(newPhotos[i].path), fit: BoxFit.cover),
+              onRemove: () => onRemoveNew(i),
+            ),
+          ),
+
+          // Add button
+          if (total < 6)
+            GestureDetector(
+              onTap: onAdd,
+              child: Container(
+                width: 90,
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                child: Icon(Icons.add_photo_alternate_outlined,
+                    color: Colors.grey[400], size: 28),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PhotoThumb extends StatelessWidget {
+  final Widget child;
+  final VoidCallback onRemove;
+
+  const _PhotoThumb({required this.child, required this.onRemove});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Container(
+          width: 90,
+          height: 90,
+          margin: const EdgeInsets.only(right: 8),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: child,
+          ),
+        ),
+        Positioned(
+          top: 2,
+          right: 10,
+          child: GestureDetector(
+            onTap: onRemove,
+            child: Container(
+              width: 22,
+              height: 22,
+              decoration: const BoxDecoration(
+                color: Colors.black54,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.close, size: 14, color: Colors.white),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -189,7 +417,6 @@ class _CategorySlot extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // Thumbnail or placeholder
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
                 child: SizedBox(
@@ -199,16 +426,11 @@ class _CategorySlot extends StatelessWidget {
                       ? Image.file(File(selected!.photoPath!), fit: BoxFit.cover)
                       : Container(
                           color: Colors.grey[100],
-                          child: Icon(
-                            Icons.add,
-                            color: Colors.grey[400],
-                          ),
+                          child: Icon(Icons.add, color: Colors.grey[400]),
                         ),
                 ),
               ),
               const SizedBox(width: 14),
-
-              // Category label + item name
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -224,7 +446,8 @@ class _CategorySlot extends StatelessWidget {
                       selected?.name ?? 'Tap to choose',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: selected != null ? null : Colors.grey[400],
-                            fontWeight: selected != null ? FontWeight.w500 : null,
+                            fontWeight:
+                                selected != null ? FontWeight.w500 : null,
                           ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -232,8 +455,6 @@ class _CategorySlot extends StatelessWidget {
                   ],
                 ),
               ),
-
-              // Remove button
               if (selected != null)
                 IconButton(
                   icon: const Icon(Icons.close, size: 18),
@@ -307,7 +528,8 @@ class _ItemPickerSheet extends StatelessWidget {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(10),
                           child: item.photoPath != null
-                              ? Image.file(File(item.photoPath!), fit: BoxFit.cover, width: double.infinity)
+                              ? Image.file(File(item.photoPath!),
+                                  fit: BoxFit.cover, width: double.infinity)
                               : Container(
                                   color: Colors.grey[100],
                                   child: const Icon(Icons.checkroom_outlined),

@@ -57,6 +57,14 @@ final appRouter = GoRouter(
                   path: ':id',
                   builder: (context, state) =>
                       OutfitDetailScreen(outfitId: state.pathParameters['id']!),
+                  routes: [
+                    GoRoute(
+                      path: 'edit',
+                      builder: (context, state) => CreateOutfitScreen(
+                        editOutfitId: state.pathParameters['id']!,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
