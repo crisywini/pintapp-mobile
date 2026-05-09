@@ -6,8 +6,14 @@ import 'package:image_picker/image_picker.dart';
 class PhotoPickerWidget extends StatelessWidget {
   final XFile? photo;
   final ValueChanged<XFile> onPicked;
+  final bool hasError;
 
-  const PhotoPickerWidget({super.key, this.photo, required this.onPicked});
+  const PhotoPickerWidget({
+    super.key,
+    this.photo,
+    required this.onPicked,
+    this.hasError = false,
+  });
 
   Future<void> _pick(BuildContext context) async {
     final picker = ImagePicker();
@@ -54,35 +60,63 @@ class PhotoPickerWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => _pick(context),
-      child: AspectRatio(
-        aspectRatio: 1,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.grey[100],
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey[300]!),
-          ),
-          child: photo != null
-              ? ClipRRect(
-                  borderRadius: BorderRadius.circular(15),
-                  child: Image.file(File(photo!.path), fit: BoxFit.cover),
-                )
-              : Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.add_photo_alternate_outlined,
-                        size: 40, color: Colors.grey[400]),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Add photo',
-                      style: TextStyle(color: Colors.grey[500], fontSize: 13),
-                    ),
-                  ],
+    final errorColor = Theme.of(context).colorScheme.error;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: () => _pick(context),
+          child: AspectRatio(
+            aspectRatio: 1,
+            child: Container(
+              decoration: BoxDecoration(
+                color: hasError ? errorColor.withAlpha(12) : Colors.grey[100],
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: hasError ? errorColor : Colors.grey[300]!,
+                  width: hasError ? 1.5 : 1,
                 ),
+              ),
+              child: photo != null
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(15),
+                      child: Image.file(File(photo!.path), fit: BoxFit.cover),
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.add_photo_alternate_outlined,
+                          size: 40,
+                          color: hasError ? errorColor : Colors.grey[400],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Add photo',
+                          style: TextStyle(
+                            color: hasError ? errorColor : Colors.grey[500],
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
         ),
-      ),
+        if (hasError) ...[
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.only(left: 4),
+            child: Text(
+              'A photo is required',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: errorColor,
+                  ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

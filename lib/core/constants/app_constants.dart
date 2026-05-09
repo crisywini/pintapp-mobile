@@ -17,6 +17,8 @@ class AppConstants {
   ];
 
   static const List<AppColor> colors = [
+    // Default: covers multicolored, patterned, or "doesn't apply" items
+    AppColor(name: 'Multi', value: Color(0xFFE0E0E0), isMulti: true),
     AppColor(name: 'White', value: Color(0xFFFFFFFF)),
     AppColor(name: 'Black', value: Color(0xFF1A1A1A)),
     AppColor(name: 'Gray', value: Color(0xFF9E9E9E)),
@@ -38,6 +40,7 @@ class AppConstants {
 class AppColor {
   final String name;
   final Color value;
+  final bool isMulti;
 
-  const AppColor({required this.name, required this.value});
+  const AppColor({required this.name, required this.value, this.isMulti = false});
 }

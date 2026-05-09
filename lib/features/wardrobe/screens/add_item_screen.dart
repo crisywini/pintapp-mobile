@@ -22,6 +22,7 @@ class _AddItemScreenState extends ConsumerState<AddItemScreen> {
   String _color = AppConstants.colors.first.name;
   String _occasion = AppConstants.occasions.first;
   XFile? _photo;
+  bool _photoError = false;
   bool _saving = false;
 
   @override
@@ -31,7 +32,11 @@ class _AddItemScreenState extends ConsumerState<AddItemScreen> {
   }
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
+    final formValid = _formKey.currentState!.validate();
+    final photoValid = _photo != null;
+
+    if (!photoValid) setState(() => _photoError = true);
+    if (!formValid || !photoValid) return;
 
     setState(() => _saving = true);
 
@@ -58,7 +63,11 @@ class _AddItemScreenState extends ConsumerState<AddItemScreen> {
             // Photo picker
             PhotoPickerWidget(
               photo: _photo,
-              onPicked: (f) => setState(() => _photo = f),
+              hasError: _photoError,
+              onPicked: (f) => setState(() {
+                _photo = f;
+                _photoError = false;
+              }),
             ),
 
             const SizedBox(height: 24),
@@ -182,13 +191,25 @@ class _ColorPickerField extends StatelessWidget {
             return GestureDetector(
               onTap: () => onChanged(appColor.name),
               child: Tooltip(
-                message: appColor.name,
+                message: appColor.isMulti ? 'Multi-color / Pattern' : appColor.name,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: appColor.value,
+                    // Multi uses a rainbow sweep gradient; others use solid color
+                    gradient: appColor.isMulti
+                        ? const SweepGradient(colors: [
+                            Colors.red,
+                            Colors.orange,
+                            Colors.yellow,
+                            Colors.green,
+                            Colors.blue,
+                            Colors.purple,
+                            Colors.red,
+                          ])
+                        : null,
+                    color: appColor.isMulti ? null : appColor.value,
                     shape: BoxShape.circle,
                     border: Border.all(
                       color: isSelected
@@ -197,19 +218,19 @@ class _ColorPickerField extends StatelessWidget {
                       width: isSelected ? 3 : 1.5,
                     ),
                     boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: appColor.value.withAlpha(80),
-                              blurRadius: 6,
-                            )
-                          ]
+                        ? [BoxShadow(color: Colors.black26, blurRadius: 6)]
                         : null,
                   ),
                   child: isSelected
                       ? Icon(
                           Icons.check,
                           size: 18,
-                          color: _contrastColor(appColor.value),
+                          color: appColor.isMulti
+                              ? Colors.white
+                              : _contrastColor(appColor.value),
+                          shadows: appColor.isMulti
+                              ? [const Shadow(blurRadius: 2)]
+                              : null,
                         )
                       : null,
                 ),
