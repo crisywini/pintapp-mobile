@@ -8,7 +8,10 @@ import '../../../shared/widgets/photo_picker_widget.dart';
 import '../providers/wardrobe_provider.dart';
 
 class AddItemScreen extends ConsumerStatefulWidget {
-  const AddItemScreen({super.key});
+  final String? editItemId;
+  const AddItemScreen({super.key, this.editItemId});
+
+  bool get isEditing => editItemId != null;
 
   @override
   ConsumerState<AddItemScreen> createState() => _AddItemScreenState();
@@ -22,8 +25,35 @@ class _AddItemScreenState extends ConsumerState<AddItemScreen> {
   String _color = AppConstants.colors.first.name;
   String _occasion = AppConstants.occasions.first;
   XFile? _photo;
+  String? _existingPhotoPath;
   bool _photoError = false;
   bool _saving = false;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isEditing) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadItem());
+    }
+  }
+
+  void _loadItem() {
+    final item = ref
+        .read(wardrobeProvider)
+        .where((i) => i.id == widget.editItemId)
+        .firstOrNull;
+    if (item == null) return;
+
+    setState(() {
+      _nameController.text = item.name;
+      _category = item.category;
+      _color = item.color;
+      _occasion = item.occasion;
+      _existingPhotoPath = item.photoPath;
+      _loaded = true;
+    });
+  }
 
   @override
   void dispose() {
@@ -31,30 +61,51 @@ class _AddItemScreenState extends ConsumerState<AddItemScreen> {
     super.dispose();
   }
 
+  bool get _hasPhoto => _photo != null || _existingPhotoPath != null;
+
   Future<void> _save() async {
     final formValid = _formKey.currentState!.validate();
-    final photoValid = _photo != null;
+    final photoValid = _hasPhoto;
 
     if (!photoValid) setState(() => _photoError = true);
     if (!formValid || !photoValid) return;
 
     setState(() => _saving = true);
 
-    await ref.read(wardrobeProvider.notifier).addItem(
-          name: _nameController.text.trim(),
-          category: _category,
-          color: _color,
-          occasion: _occasion,
-          photo: _photo,
-        );
+    if (widget.isEditing) {
+      await ref.read(wardrobeProvider.notifier).updateItem(
+            id: widget.editItemId!,
+            name: _nameController.text.trim(),
+            category: _category,
+            color: _color,
+            occasion: _occasion,
+            newPhoto: _photo,
+          );
+    } else {
+      await ref.read(wardrobeProvider.notifier).addItem(
+            name: _nameController.text.trim(),
+            category: _category,
+            color: _color,
+            occasion: _occasion,
+            photo: _photo,
+          );
+    }
 
     if (mounted) context.pop();
   }
 
   @override
   Widget build(BuildContext context) {
+    // Show a spinner while loading the existing item in edit mode
+    if (widget.isEditing && !_loaded) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Edit Item')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
-      appBar: AppBar(title: const Text('New Item')),
+      appBar: AppBar(title: Text(widget.isEditing ? 'Edit Item' : 'New Item')),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -63,6 +114,7 @@ class _AddItemScreenState extends ConsumerState<AddItemScreen> {
             // Photo picker
             PhotoPickerWidget(
               photo: _photo,
+              existingPhotoPath: _existingPhotoPath,
               hasError: _photoError,
               onPicked: (f) => setState(() {
                 _photo = f;

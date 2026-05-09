@@ -29,6 +29,13 @@ final appRouter = GoRouter(
                   path: ':id',
                   builder: (context, state) =>
                       ItemDetailScreen(itemId: state.pathParameters['id']!),
+                  routes: [
+                    GoRoute(
+                      path: 'edit',
+                      builder: (context, state) =>
+                          AddItemScreen(editItemId: state.pathParameters['id']!),
+                    ),
+                  ],
                 ),
               ],
             ),

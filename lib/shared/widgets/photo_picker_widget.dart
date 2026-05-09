@@ -5,12 +5,14 @@ import 'package:image_picker/image_picker.dart';
 
 class PhotoPickerWidget extends StatelessWidget {
   final XFile? photo;
+  final String? existingPhotoPath;
   final ValueChanged<XFile> onPicked;
   final bool hasError;
 
   const PhotoPickerWidget({
     super.key,
     this.photo,
+    this.existingPhotoPath,
     required this.onPicked,
     this.hasError = false,
   });
@@ -83,7 +85,12 @@ class PhotoPickerWidget extends StatelessWidget {
                       borderRadius: BorderRadius.circular(15),
                       child: Image.file(File(photo!.path), fit: BoxFit.cover),
                     )
-                  : Column(
+                  : existingPhotoPath != null
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(15),
+                          child: Image.file(File(existingPhotoPath!), fit: BoxFit.cover),
+                        )
+                      : Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(

@@ -50,6 +50,40 @@ class WardrobeNotifier extends Notifier<List<ClothingItem>> {
     state = _repo.getAll();
   }
 
+  Future<void> updateItem({
+    required String id,
+    required String name,
+    required String category,
+    required String color,
+    required String occasion,
+    XFile? newPhoto,
+  }) async {
+    final existing = _repo.getById(id);
+    if (existing == null) return;
+
+    String? photoPath = existing.photoPath;
+
+    if (newPhoto != null) {
+      // Delete the old photo file before replacing it
+      if (existing.photoPath != null) {
+        final old = File(existing.photoPath!);
+        if (await old.exists()) await old.delete();
+      }
+      photoPath = await _savePhoto(newPhoto, id);
+    }
+
+    final updated = existing.copyWith(
+      name: name,
+      category: category,
+      color: color,
+      occasion: occasion,
+      photoPath: photoPath,
+    );
+
+    await _repo.save(updated);
+    state = _repo.getAll();
+  }
+
   Future<void> deleteItem(String id) async {
     final item = _repo.getById(id);
     if (item?.photoPath != null) {

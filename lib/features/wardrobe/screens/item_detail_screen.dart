@@ -53,6 +53,11 @@ class ItemDetailScreen extends ConsumerWidget {
             ),
             actions: [
               IconButton(
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: 'Edit',
+                onPressed: () => context.push('/wardrobe/$itemId/edit'),
+              ),
+              IconButton(
                 icon: const Icon(Icons.delete_outline),
                 tooltip: 'Delete',
                 onPressed: () => _confirmDelete(context, ref),
