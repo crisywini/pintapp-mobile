@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+
+  <!-- Near-black background matching app theme (#1A1A1A) -->
+  <rect width="1024" height="1024" fill="#1A1A1A" rx="224"/>
+
+  <!--
+    Arch mirror frame.
+    Mirror: 420px wide, centered at x=512  (x: 302 → 722)
+    Arch:   perfect semicircle, radius 210, center at (512, 387)
+    Arch top point: (512, 177)
+    Rect portion: y=387 → y=847  (460px tall)
+    Total frame height: 670px, vertically centered with 177px margins.
+
+    Arc sweep=1 → clockwise in SVG's y-down space → curves UPWARD
+    (sweep=0 would curve downward, creating an inverted-arch / bucket shape)
+  -->
+
+  <!-- Outer frame (thick) -->
+  <path
+    d="M 302,847 L 302,387 A 210,210 0 0,1 722,387 L 722,847 Z"
+    fill="none"
+    stroke="#E8D5B5"
+    stroke-width="24"
+    stroke-linejoin="round"
+  />
+
+  <!-- Inner frame line — double-frame detail for an editorial look -->
+  <path
+    d="M 317,832 L 317,387 A 195,195 0 0,1 707,387 L 707,832 Z"
+    fill="none"
+    stroke="#E8D5B5"
+    stroke-width="7"
+    stroke-linejoin="round"
+    opacity="0.35"
+  />
+
+</svg>
