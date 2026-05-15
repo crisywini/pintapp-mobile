@@ -29,11 +29,13 @@ class OutfitNotifier extends Notifier<List<Outfit>> {
   Future<void> saveOutfit({
     required String name,
     required List<String> itemIds,
+    required String outfitType,
   }) async {
     final outfit = Outfit(
       id: const Uuid().v4(),
       name: name,
       itemIds: itemIds,
+      outfitType: outfitType,
     );
     await _repo.save(outfit);
     state = _repo.getAll();
@@ -44,6 +46,7 @@ class OutfitNotifier extends Notifier<List<Outfit>> {
     required String name,
     required List<String> itemIds,
     required List<String> keepPhotoPaths,
+    required String outfitType,
     List<String> removedPhotoPaths = const [],
     List<XFile> newPhotos = const [],
   }) async {
@@ -64,6 +67,7 @@ class OutfitNotifier extends Notifier<List<Outfit>> {
       name: name,
       itemIds: itemIds,
       photoPaths: [...keepPhotoPaths, ...savedPaths],
+      outfitType: outfitType,
     );
 
     await _repo.save(updated);
@@ -99,33 +103,72 @@ final outfitProvider =
 
 // ── Draft outfit state ────────────────────────────────────────────────────────
 
-/// Maps category → selected ClothingItem while building/editing an outfit.
-class DraftOutfitNotifier extends Notifier<Map<String, ClothingItem>> {
+class DraftOutfitState {
+  final String outfitType;
+  final Map<String, List<ClothingItem>> slots;
+
+  const DraftOutfitState({
+    required this.outfitType,
+    required this.slots,
+  });
+
+  DraftOutfitState copyWith({
+    String? outfitType,
+    Map<String, List<ClothingItem>>? slots,
+  }) {
+    return DraftOutfitState(
+      outfitType: outfitType ?? this.outfitType,
+      slots: slots ?? this.slots,
+    );
+  }
+}
+
+class DraftOutfitNotifier extends Notifier<DraftOutfitState> {
   @override
-  Map<String, ClothingItem> build() => {};
+  DraftOutfitState build() =>
+      const DraftOutfitState(outfitType: '3-piece', slots: {});
 
-  void selectItem(ClothingItem item) {
-    state = {...state, item.category: item};
+  void setOutfitType(String type) {
+    state = DraftOutfitState(outfitType: type, slots: {});
   }
 
-  void removeCategory(String category) {
-    final next = Map<String, ClothingItem>.from(state);
-    next.remove(category);
-    state = next;
+  void addItemToSlot(ClothingItem item) {
+    final updated = Map<String, List<ClothingItem>>.from(
+      state.slots.map((k, v) => MapEntry(k, List<ClothingItem>.from(v))),
+    );
+    final list = updated.putIfAbsent(item.category, () => []);
+    list.add(item);
+    state = state.copyWith(slots: updated);
   }
 
-  /// Pre-populates the draft when editing an existing outfit.
-  void loadFromItems(List<ClothingItem> items) {
-    state = {for (final item in items) item.category: item};
+  void removeItemFromSlot(String category, int index) {
+    final updated = Map<String, List<ClothingItem>>.from(
+      state.slots.map((k, v) => MapEntry(k, List<ClothingItem>.from(v))),
+    );
+    final list = updated[category];
+    if (list == null) return;
+    list.removeAt(index);
+    if (list.isEmpty) updated.remove(category);
+    state = state.copyWith(slots: updated);
   }
 
-  void reset() => state = {};
+  void loadFromItems(List<ClothingItem> items, String outfitType) {
+    final slots = <String, List<ClothingItem>>{};
+    for (final item in items) {
+      slots.putIfAbsent(item.category, () => []).add(item);
+    }
+    state = DraftOutfitState(outfitType: outfitType, slots: slots);
+  }
 
-  List<String> get selectedItemIds => state.values.map((i) => i.id).toList();
+  void reset() =>
+      state = const DraftOutfitState(outfitType: '3-piece', slots: {});
+
+  List<String> get selectedItemIds =>
+      state.slots.values.expand((list) => list).map((i) => i.id).toList();
 }
 
 final draftOutfitProvider =
-    NotifierProvider<DraftOutfitNotifier, Map<String, ClothingItem>>(
+    NotifierProvider<DraftOutfitNotifier, DraftOutfitState>(
   DraftOutfitNotifier.new,
 );
 

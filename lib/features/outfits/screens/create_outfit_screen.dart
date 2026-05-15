@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,6 +26,7 @@ class _CreateOutfitScreenState extends ConsumerState<CreateOutfitScreen> {
   final _nameController = TextEditingController();
   bool _saving = false;
   bool _loaded = false;
+  bool _showAnimation = false;
 
   // Photo state (edit mode only)
   List<String> _existingPhotoPaths = [];
@@ -38,9 +41,23 @@ class _CreateOutfitScreenState extends ConsumerState<CreateOutfitScreen> {
         _loadExistingOutfit();
       } else {
         ref.read(draftOutfitProvider.notifier).reset();
-        setState(() => _loaded = true);
+        _pickOutfitType();
       }
     });
+  }
+
+  Future<void> _pickOutfitType() async {
+    final type = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _OutfitTypeDialog(),
+    );
+    if (type == null) {
+      if (mounted) context.pop();
+      return;
+    }
+    ref.read(draftOutfitProvider.notifier).setOutfitType(type);
+    if (mounted) setState(() => _showAnimation = true);
   }
 
   void _loadExistingOutfit() {
@@ -53,13 +70,13 @@ class _CreateOutfitScreenState extends ConsumerState<CreateOutfitScreen> {
 
     _nameController.text = outfit.name;
 
-    // Pre-populate category slots with the outfit's items
+    final outfitType = outfit.outfitType ?? '3-piece';
     final wardrobe = ref.read(wardrobeProvider);
     final items = outfit.itemIds
         .map((id) => wardrobe.where((i) => i.id == id).firstOrNull)
         .whereType<ClothingItem>()
         .toList();
-    ref.read(draftOutfitProvider.notifier).loadFromItems(items);
+    ref.read(draftOutfitProvider.notifier).loadFromItems(items, outfitType);
 
     setState(() {
       _existingPhotoPaths = List.from(outfit.photoPaths);
@@ -126,8 +143,21 @@ class _CreateOutfitScreenState extends ConsumerState<CreateOutfitScreen> {
       return;
     }
 
-    final draft = ref.read(draftOutfitProvider.notifier);
-    if (draft.selectedItemIds.isEmpty) {
+    final draft = ref.read(draftOutfitProvider);
+    final required = AppConstants.requiredSlots[draft.outfitType] ?? [];
+    final missingSlots = required
+        .where((cat) => (draft.slots[cat] ?? []).isEmpty)
+        .toList();
+
+    if (missingSlots.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please add a ${missingSlots.first}')),
+      );
+      return;
+    }
+
+    final notifier = ref.read(draftOutfitProvider.notifier);
+    if (notifier.selectedItemIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Add at least one item to the outfit')),
       );
@@ -140,24 +170,58 @@ class _CreateOutfitScreenState extends ConsumerState<CreateOutfitScreen> {
       await ref.read(outfitProvider.notifier).updateOutfit(
             id: widget.editOutfitId!,
             name: name,
-            itemIds: draft.selectedItemIds,
+            itemIds: notifier.selectedItemIds,
             keepPhotoPaths: _keepPhotoPaths,
             removedPhotoPaths: _removedPhotoPaths.toList(),
             newPhotos: _newPhotos,
+            outfitType: draft.outfitType,
           );
     } else {
       await ref.read(outfitProvider.notifier).saveOutfit(
             name: name,
-            itemIds: draft.selectedItemIds,
+            itemIds: notifier.selectedItemIds,
+            outfitType: draft.outfitType,
           );
-      draft.reset();
+      notifier.reset();
     }
 
     if (mounted) context.pop();
   }
 
+  Future<void> _pickItem(String category) async {
+    final items = ref.read(itemsByCategoryProvider(category));
+
+    if (items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No $category in your wardrobe yet')),
+      );
+      return;
+    }
+
+    final picked = await showModalBottomSheet<ClothingItem>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _ItemPickerSheet(category: category, items: items),
+    );
+
+    if (picked != null) {
+      ref.read(draftOutfitProvider.notifier).addItemToSlot(picked);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_showAnimation) {
+      return _OutfitAnimationScreen(
+        onComplete: () {
+          if (mounted) setState(() { _showAnimation = false; _loaded = true; });
+        },
+      );
+    }
+
     if (!_loaded) {
       return Scaffold(
         appBar: AppBar(title: Text(widget.isEditing ? 'Edit Outfit' : 'New Outfit')),
@@ -166,6 +230,8 @@ class _CreateOutfitScreenState extends ConsumerState<CreateOutfitScreen> {
     }
 
     final draft = ref.watch(draftOutfitProvider);
+    final requiredCats = AppConstants.requiredSlots[draft.outfitType] ?? [];
+    final optionalCats = AppConstants.optionalSlots[draft.outfitType] ?? [];
 
     return Scaffold(
       appBar: AppBar(
@@ -218,24 +284,43 @@ class _CreateOutfitScreenState extends ConsumerState<CreateOutfitScreen> {
 
           const SizedBox(height: 28),
 
+          // ── Required slots ──────────────────────────────────────────────
           Text(
-            'Items',
+            'Required',
             style: Theme.of(context)
                 .textTheme
                 .titleMedium
                 ?.copyWith(fontWeight: FontWeight.w700),
           ),
-
           const SizedBox(height: 12),
-
-          // One slot per category
-          ...AppConstants.categories.map(
-            (cat) => _CategorySlot(
+          ...requiredCats.map(
+            (cat) => _OutfitSlotCard(
               category: cat,
-              selected: draft[cat],
-              onTap: () => _pickItem(context, cat),
-              onRemove: () =>
-                  ref.read(draftOutfitProvider.notifier).removeCategory(cat),
+              items: draft.slots[cat] ?? [],
+              onAdd: () => _pickItem(cat),
+              onRemove: (index) =>
+                  ref.read(draftOutfitProvider.notifier).removeItemFromSlot(cat, index),
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // ── Optional slots ──────────────────────────────────────────────
+          Text(
+            'Optional',
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          ...optionalCats.map(
+            (cat) => _OutfitSlotCard(
+              category: cat,
+              items: draft.slots[cat] ?? [],
+              onAdd: () => _pickItem(cat),
+              onRemove: (index) =>
+                  ref.read(draftOutfitProvider.notifier).removeItemFromSlot(cat, index),
             ),
           ),
 
@@ -255,29 +340,491 @@ class _CreateOutfitScreenState extends ConsumerState<CreateOutfitScreen> {
       ),
     );
   }
+}
 
-  Future<void> _pickItem(BuildContext context, String category) async {
-    final items = ref.read(itemsByCategoryProvider(category));
+// ── Outfit loading animation ──────────────────────────────────────────────────
 
-    if (items.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No $category in your wardrobe yet')),
-      );
-      return;
-    }
+class _OutfitAnimationScreen extends StatefulWidget {
+  final VoidCallback onComplete;
+  const _OutfitAnimationScreen({required this.onComplete});
 
-    final picked = await showModalBottomSheet<ClothingItem>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => _ItemPickerSheet(category: category, items: items),
+  @override
+  State<_OutfitAnimationScreen> createState() => _OutfitAnimationScreenState();
+}
+
+class _OutfitAnimationScreenState extends State<_OutfitAnimationScreen>
+    with TickerProviderStateMixin {
+  static const _phrases = [
+    "reviewing Manolo's archives...",
+    "consulting this week's Vogue...",
+    "a Cosmo please, we're almost there...",
+    "pressing the good trousers...",
+    "asking Carrie for advice...",
+    "checking the sock situation...",
+    "ironing out the details...",
+    "steaming the good stuff...",
+    "finding the perfect light...",
+    "Colombia called, it approved...",
+    "the mirror doesn't lie, almost ready...",
+    "picking the right fragrance...",
+    "buttoning up...",
+    "almost as good as the real thing...",
+  ];
+
+  late final AnimationController _swingController;
+  late final Animation<double> _swingAngle;
+  late final AnimationController _fadeController;
+
+  late final List<String> _shuffled;
+  int _phraseIndex = 0;
+  Timer? _phraseTimer;
+  Timer? _doneTimer;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Shuffle phrases so every session feels fresh
+    _shuffled = List<String>.from(_phrases)..shuffle(Random());
+
+    // Pendulum swing — hanger rocks left/right
+    _swingController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+
+    _swingAngle = Tween<double>(begin: -0.18, end: 0.18).animate(
+      CurvedAnimation(parent: _swingController, curve: Curves.easeInOut),
     );
 
-    if (picked != null) {
-      ref.read(draftOutfitProvider.notifier).selectItem(picked);
+    // Phrase fade controller
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+      value: 1,
+    );
+
+    // Cycle to next phrase every ~2200 ms
+    _phraseTimer = Timer.periodic(const Duration(milliseconds: 2200), (_) async {
+      if (!mounted) return;
+      await _fadeController.reverse();
+      if (!mounted) return;
+      setState(() => _phraseIndex = (_phraseIndex + 1) % _shuffled.length);
+      _fadeController.forward();
+    });
+
+    // Finish after random 2–5 s
+    final ms = 2000 + Random().nextInt(3001);
+    _doneTimer = Timer(Duration(milliseconds: ms), widget.onComplete);
+  }
+
+  @override
+  void dispose() {
+    _swingController.dispose();
+    _fadeController.dispose();
+    _phraseTimer?.cancel();
+    _doneTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Swinging hanger
+              AnimatedBuilder(
+                animation: _swingAngle,
+                builder: (context, child) => Transform.rotate(
+                  angle: _swingAngle.value,
+                  alignment: Alignment.topCenter,
+                  child: Icon(
+                    Icons.checkroom_outlined,
+                    size: 96,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 48),
+
+              // Fading phrase
+              FadeTransition(
+                opacity: _fadeController,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40),
+                  child: Text(
+                    _shuffled[_phraseIndex],
+                    key: ValueKey(_phraseIndex),
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Outfit type dialog ────────────────────────────────────────────────────────
+
+class _OutfitTypeDialog extends StatefulWidget {
+  const _OutfitTypeDialog();
+
+  @override
+  State<_OutfitTypeDialog> createState() => _OutfitTypeDialogState();
+}
+
+class _OutfitTypeDialogState extends State<_OutfitTypeDialog> {
+  String _selected = '3-piece';
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Choose Outfit Type'),
+      content: RadioGroup<String>(
+        groupValue: _selected,
+        onChanged: (v) => setState(() => _selected = v!),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            RadioListTile<String>(
+              value: '3-piece',
+              title: Text('3-Piece Outfit'),
+              subtitle: Text('Top, Bottoms & Shoes'),
+              contentPadding: EdgeInsets.zero,
+            ),
+            RadioListTile<String>(
+              value: '2-piece',
+              title: Text('2-Piece Outfit'),
+              subtitle: Text('Dress & Shoes'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _selected),
+          child: const Text('Continue'),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Per-slot carousel card ────────────────────────────────────────────────────
+
+class _OutfitSlotCard extends StatefulWidget {
+  final String category;
+  final List<ClothingItem> items;
+  final VoidCallback onAdd;
+  final ValueChanged<int> onRemove;
+
+  const _OutfitSlotCard({
+    required this.category,
+    required this.items,
+    required this.onAdd,
+    required this.onRemove,
+  });
+
+  @override
+  State<_OutfitSlotCard> createState() => _OutfitSlotCardState();
+}
+
+class _OutfitSlotCardState extends State<_OutfitSlotCard> {
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
+
+  @override
+  void didUpdateWidget(_OutfitSlotCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // If item was removed and we're past the end, jump back
+    if (widget.items.isNotEmpty && _currentPage >= widget.items.length) {
+      final newPage = widget.items.length - 1;
+      _currentPage = newPage;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_pageController.hasClients) {
+          _pageController.jumpToPage(newPage);
+        }
+      });
     }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: widget.items.isEmpty ? _buildEmpty() : _buildCarousel(),
+    );
+  }
+
+  Widget _buildEmpty() {
+    return GestureDetector(
+      onTap: widget.onAdd,
+      child: Container(
+        height: 160,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: Colors.grey[300]!,
+            width: 1.5,
+            // Dashed border via custom painter would require a package;
+            // using a solid border is simpler and avoids extra deps.
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_circle_outline, size: 32, color: Colors.grey[400]),
+            const SizedBox(height: 6),
+            Text(
+              'Add ${widget.category}',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey[500],
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCarousel() {
+    final items = widget.items;
+    final showArrows = items.length > 1;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        children: [
+          // Category label
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+            child: Row(
+              children: [
+                Text(
+                  widget.category,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                const Spacer(),
+                Text(
+                  '${_currentPage + 1} / ${items.length}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey[400],
+                      ),
+                ),
+              ],
+            ),
+          ),
+
+          // PageView row: left arrow | card | right arrow
+          SizedBox(
+            height: 150,
+            child: Row(
+              children: [
+                // Left arrow
+                SizedBox(
+                  width: 36,
+                  child: showArrows && _currentPage > 0
+                      ? IconButton(
+                          icon: const Icon(Icons.chevron_left),
+                          onPressed: () {
+                            _pageController.previousPage(
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeInOut,
+                            );
+                          },
+                        )
+                      : null,
+                ),
+
+                // Page view
+                Expanded(
+                  child: PageView.builder(
+                    controller: _pageController,
+                    itemCount: items.length,
+                    onPageChanged: (i) => setState(() => _currentPage = i),
+                    itemBuilder: (_, i) {
+                      final item = items[i];
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Stack(
+                          children: [
+                            // Item photo + name
+                            Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: SizedBox(
+                                      width: 100,
+                                      height: 100,
+                                      child: item.photoPath != null
+                                          ? Image.file(
+                                              File(item.photoPath!),
+                                              fit: BoxFit.cover,
+                                            )
+                                          : Container(
+                                              color: Colors.grey[100],
+                                              child: const Icon(
+                                                  Icons.checkroom_outlined),
+                                            ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    item.name,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
+                                            fontWeight: FontWeight.w500),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // Remove (×) button — top-right
+                            Positioned(
+                              top: 0,
+                              right: 0,
+                              child: GestureDetector(
+                                onTap: () => widget.onRemove(i),
+                                child: Container(
+                                  width: 22,
+                                  height: 22,
+                                  decoration: const BoxDecoration(
+                                    color: Colors.black54,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.close,
+                                      size: 14, color: Colors.white),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+                // Right arrow
+                SizedBox(
+                  width: 36,
+                  child: showArrows && _currentPage < items.length - 1
+                      ? IconButton(
+                          icon: const Icon(Icons.chevron_right),
+                          onPressed: () {
+                            _pageController.nextPage(
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeInOut,
+                            );
+                          },
+                        )
+                      : null,
+                ),
+              ],
+            ),
+          ),
+
+          // Dot indicators + add button
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Dot indicators
+                if (showArrows)
+                  ...List.generate(items.length, (i) {
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: i == _currentPage ? 10 : 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: i == _currentPage
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.grey[300],
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    );
+                  }),
+
+                const Spacer(),
+
+                // Add another item to this slot
+                GestureDetector(
+                  onTap: widget.onAdd,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.add,
+                            size: 14,
+                            color: Theme.of(context).colorScheme.primary),
+                        const SizedBox(width: 2),
+                        Text(
+                          'Add',
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -382,91 +929,6 @@ class _PhotoThumb extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-// ── Category slot row ─────────────────────────────────────────────────────────
-
-class _CategorySlot extends StatelessWidget {
-  final String category;
-  final ClothingItem? selected;
-  final VoidCallback onTap;
-  final VoidCallback onRemove;
-
-  const _CategorySlot({
-    required this.category,
-    required this.selected,
-    required this.onTap,
-    required this.onRemove,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.grey[200]!),
-          ),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: SizedBox(
-                  width: 56,
-                  height: 56,
-                  child: selected?.photoPath != null
-                      ? Image.file(File(selected!.photoPath!), fit: BoxFit.cover)
-                      : Container(
-                          color: Colors.grey[100],
-                          child: Icon(Icons.add, color: Colors.grey[400]),
-                        ),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      category,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      selected?.name ?? 'Tap to choose',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: selected != null ? null : Colors.grey[400],
-                            fontWeight:
-                                selected != null ? FontWeight.w500 : null,
-                          ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              if (selected != null)
-                IconButton(
-                  icon: const Icon(Icons.close, size: 18),
-                  color: Colors.grey[500],
-                  onPressed: onRemove,
-                )
-              else
-                Icon(Icons.chevron_right, color: Colors.grey[400]),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

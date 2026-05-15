@@ -81,10 +81,32 @@ class _AppShell extends StatelessWidget {
   final StatefulNavigationShell shell;
   const _AppShell({required this.shell});
 
+  static const int _branchCount = 2;
+
+  void _handleSwipe(DragEndDetails details) {
+    const threshold = 350.0; // px/s — fast enough to feel intentional
+    final v = details.primaryVelocity ?? 0;
+    if (v < -threshold) {
+      // Swipe left → next tab
+      final next = shell.currentIndex + 1;
+      if (next < _branchCount) shell.goBranch(next);
+    } else if (v > threshold) {
+      // Swipe right → previous tab
+      final prev = shell.currentIndex - 1;
+      if (prev >= 0) shell.goBranch(prev);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: shell,
+      body: GestureDetector(
+        onHorizontalDragEnd: _handleSwipe,
+        // deferToChild lets inner widgets (PageView carousels, etc.) win
+        // the gesture arena first, so only unclaimed swipes reach us.
+        behavior: HitTestBehavior.translucent,
+        child: shell,
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: shell.currentIndex,
         onDestinationSelected: (i) => shell.goBranch(

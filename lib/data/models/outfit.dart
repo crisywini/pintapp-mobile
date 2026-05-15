@@ -19,11 +19,16 @@ class Outfit {
   @HiveField(3)
   final List<String> photoPaths;
 
+  /// '3-piece' or '2-piece'. Null for outfits saved before this field was added.
+  @HiveField(4)
+  final String? outfitType;
+
   const Outfit({
     required this.id,
     required this.name,
     required this.itemIds,
     this.photoPaths = const [],
+    this.outfitType,
   });
 
   Outfit copyWith({
@@ -31,12 +36,14 @@ class Outfit {
     String? name,
     List<String>? itemIds,
     List<String>? photoPaths,
+    String? outfitType,
   }) {
     return Outfit(
       id: id ?? this.id,
       name: name ?? this.name,
       itemIds: itemIds ?? this.itemIds,
       photoPaths: photoPaths ?? this.photoPaths,
+      outfitType: outfitType ?? this.outfitType,
     );
   }
 }

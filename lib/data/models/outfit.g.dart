@@ -21,13 +21,14 @@ class OutfitAdapter extends TypeAdapter<Outfit> {
       name: fields[1] as String,
       itemIds: (fields[2] as List).cast<String>(),
       photoPaths: fields[3] == null ? [] : (fields[3] as List).cast<String>(),
+      outfitType: fields[4] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Outfit obj) {
     writer
-      ..writeByte(4)
+      ..writeByte(5)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -35,7 +36,9 @@ class OutfitAdapter extends TypeAdapter<Outfit> {
       ..writeByte(2)
       ..write(obj.itemIds)
       ..writeByte(3)
-      ..write(obj.photoPaths);
+      ..write(obj.photoPaths)
+      ..writeByte(4)
+      ..write(obj.outfitType);
   }
 
   @override

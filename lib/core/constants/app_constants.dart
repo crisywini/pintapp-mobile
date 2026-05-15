@@ -3,11 +3,24 @@ import 'package:flutter/material.dart';
 class AppConstants {
   static const List<String> categories = [
     'Tops',
+    'Dresses',
     'Bottoms',
     'Shoes',
     'Outerwear',
     'Accessories',
   ];
+
+  static const List<String> outfitTypes = ['3-piece', '2-piece'];
+
+  static const Map<String, List<String>> requiredSlots = {
+    '3-piece': ['Tops', 'Bottoms', 'Shoes'],
+    '2-piece': ['Dresses', 'Shoes'],
+  };
+
+  static const Map<String, List<String>> optionalSlots = {
+    '3-piece': ['Outerwear', 'Accessories'],
+    '2-piece': ['Accessories'],
+  };
 
   static const List<String> occasions = [
     'Casual',
