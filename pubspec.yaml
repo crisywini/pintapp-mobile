@@ -19,6 +19,7 @@ dependencies:
   # Local persistence
   hive: ^2.2.3
   hive_flutter: ^1.1.0
+  shared_preferences: ^2.3.3
 
   # Navigation
   go_router: ^14.6.2
