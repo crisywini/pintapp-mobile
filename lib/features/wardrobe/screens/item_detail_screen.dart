@@ -38,7 +38,20 @@ class ItemDetailScreen extends ConsumerWidget {
             pinned: true,
             flexibleSpace: FlexibleSpaceBar(
               background: item.photoPath != null
-                  ? Image.file(File(item.photoPath!), fit: BoxFit.cover)
+                  ? Image.file(
+                      File(item.photoPath!),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Container(
+                        color: appColor.value.withAlpha(40),
+                        child: Center(
+                          child: Icon(
+                            Icons.checkroom_outlined,
+                            size: 80,
+                            color: appColor.value.withAlpha(100),
+                          ),
+                        ),
+                      ),
+                    )
                   : Container(
                       color: appColor.value.withAlpha(40),
                       child: Center(

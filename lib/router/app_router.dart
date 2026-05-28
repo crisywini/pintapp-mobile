@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/fragrances/screens/add_fragrance_screen.dart';
+import '../features/fragrances/screens/fragrances_screen.dart';
 import '../features/outfits/screens/create_outfit_screen.dart';
 import '../features/outfits/screens/outfit_detail_screen.dart';
 import '../features/outfits/screens/outfits_screen.dart';
@@ -70,6 +72,28 @@ final appRouter = GoRouter(
             ),
           ],
         ),
+
+        // ── Fragrances tab ────────────────────────────────────────────────────
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/fragrances',
+              builder: (context, state) => const FragrancesScreen(),
+              routes: [
+                GoRoute(
+                  path: 'add',
+                  builder: (context, state) => const AddFragranceScreen(),
+                ),
+                GoRoute(
+                  path: ':id/edit',
+                  builder: (context, state) => AddFragranceScreen(
+                    editFragranceId: state.pathParameters['id']!,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ],
     ),
   ],
@@ -81,7 +105,7 @@ class _AppShell extends StatelessWidget {
   final StatefulNavigationShell shell;
   const _AppShell({required this.shell});
 
-  static const int _branchCount = 2;
+  static const int _branchCount = 3;
 
   void _handleSwipe(DragEndDetails details) {
     const threshold = 350.0; // px/s — fast enough to feel intentional
@@ -123,6 +147,11 @@ class _AppShell extends StatelessWidget {
             icon: Icon(Icons.style_outlined),
             selectedIcon: Icon(Icons.style),
             label: 'Outfits',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.water_drop_outlined),
+            selectedIcon: Icon(Icons.water_drop),
+            label: 'Fragancias',
           ),
         ],
       ),

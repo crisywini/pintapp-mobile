@@ -71,6 +71,8 @@ class _OutfitCardState extends State<OutfitCard> {
                           File(widget.outfit.photoPaths.first),
                           fit: BoxFit.cover,
                           width: double.infinity,
+                          errorBuilder: (_, _, _) =>
+                              _PhotoMosaic(photos: itemPhotos),
                         )
                       : _PhotoMosaic(photos: itemPhotos),
                 ),
@@ -123,16 +125,26 @@ class _PhotoMosaic extends StatelessWidget {
     }
 
     if (photos.length == 1) {
-      return Image.file(File(photos[0].photoPath!),
-          fit: BoxFit.cover, width: double.infinity);
+      return Image.file(
+        File(photos[0].photoPath!),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        errorBuilder: (_, _, _) =>
+            Container(color: Colors.grey[100]),
+      );
     }
 
     if (photos.length == 2) {
       return Row(
         children: photos
             .map((i) => Expanded(
-                  child: Image.file(File(i.photoPath!),
-                      fit: BoxFit.cover, height: double.infinity),
+                  child: Image.file(
+                    File(i.photoPath!),
+                    fit: BoxFit.cover,
+                    height: double.infinity,
+                    errorBuilder: (_, _, _) =>
+                        Container(color: Colors.grey[100]),
+                  ),
                 ))
             .toList(),
       );
@@ -142,8 +154,13 @@ class _PhotoMosaic extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: Image.file(File(photos[0].photoPath!),
-              fit: BoxFit.cover, height: double.infinity),
+          child: Image.file(
+            File(photos[0].photoPath!),
+            fit: BoxFit.cover,
+            height: double.infinity,
+            errorBuilder: (_, _, _) =>
+                Container(color: Colors.grey[100]),
+          ),
         ),
         const SizedBox(width: 1),
         Expanded(
@@ -152,8 +169,13 @@ class _PhotoMosaic extends StatelessWidget {
               for (int i = 1; i < photos.length && i < 4; i++) ...[
                 if (i > 1) const SizedBox(height: 1),
                 Expanded(
-                  child: Image.file(File(photos[i].photoPath!),
-                      fit: BoxFit.cover, width: double.infinity),
+                  child: Image.file(
+                    File(photos[i].photoPath!),
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    errorBuilder: (_, _, _) =>
+                        Container(color: Colors.grey[100]),
+                  ),
                 ),
               ],
             ],

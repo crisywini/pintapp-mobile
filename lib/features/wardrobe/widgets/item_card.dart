@@ -75,6 +75,8 @@ class _ItemCardState extends State<ItemCard> {
                           File(widget.item.photoPath!),
                           fit: BoxFit.cover,
                           width: double.infinity,
+                          errorBuilder: (_, _, _) =>
+                              _PlaceholderPhoto(color: _appColor().value),
                         )
                       : _PlaceholderPhoto(color: _appColor().value),
                 ),

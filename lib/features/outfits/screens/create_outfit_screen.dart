@@ -693,6 +693,12 @@ class _OutfitSlotCardState extends State<_OutfitSlotCard> {
                                           ? Image.file(
                                               File(item.photoPath!),
                                               fit: BoxFit.cover,
+                                              errorBuilder: (_, _, _) =>
+                                                  Container(
+                                                color: Colors.grey[100],
+                                                child: const Icon(
+                                                    Icons.checkroom_outlined),
+                                              ),
                                             )
                                           : Container(
                                               color: Colors.grey[100],
@@ -857,7 +863,12 @@ class _PhotoStrip extends StatelessWidget {
           // Existing saved photos
           ...existingPaths.map(
             (path) => _PhotoThumb(
-              child: Image.file(File(path), fit: BoxFit.cover),
+              child: Image.file(
+                File(path),
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) =>
+                    Container(color: Colors.grey[200]),
+              ),
               onRemove: () => onRemoveExisting(path),
             ),
           ),
@@ -990,8 +1001,16 @@ class _ItemPickerSheet extends StatelessWidget {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(10),
                           child: item.photoPath != null
-                              ? Image.file(File(item.photoPath!),
-                                  fit: BoxFit.cover, width: double.infinity)
+                              ? Image.file(
+                                  File(item.photoPath!),
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                  errorBuilder: (_, _, _) => Container(
+                                    color: Colors.grey[100],
+                                    child:
+                                        const Icon(Icons.checkroom_outlined),
+                                  ),
+                                )
                               : Container(
                                   color: Colors.grey[100],
                                   child: const Icon(Icons.checkroom_outlined),

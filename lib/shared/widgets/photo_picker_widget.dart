@@ -83,12 +83,36 @@ class PhotoPickerWidget extends StatelessWidget {
               child: photo != null
                   ? ClipRRect(
                       borderRadius: BorderRadius.circular(15),
-                      child: Image.file(File(photo!.path), fit: BoxFit.cover),
+                      child: Image.file(
+                        File(photo!.path),
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => Icon(
+                          Icons.broken_image_outlined,
+                          size: 40,
+                          color: Colors.grey[400],
+                        ),
+                      ),
                     )
                   : existingPhotoPath != null
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(15),
-                          child: Image.file(File(existingPhotoPath!), fit: BoxFit.cover),
+                          child: Image.file(
+                            File(existingPhotoPath!),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.broken_image_outlined,
+                                    size: 40, color: Colors.grey[400]),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Foto no disponible',
+                                  style: TextStyle(
+                                      color: Colors.grey[500], fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ),
                         )
                       : Column(
                       mainAxisAlignment: MainAxisAlignment.center,

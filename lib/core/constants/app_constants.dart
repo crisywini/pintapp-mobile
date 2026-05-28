@@ -48,6 +48,7 @@ class AppConstants {
 
   static const String wardrobeBoxName = 'wardrobe';
   static const String outfitsBoxName = 'outfits';
+  static const String fragrancesBoxName = 'fragrances';
 }
 
 class AppColor {

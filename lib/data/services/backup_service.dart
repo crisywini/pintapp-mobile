@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../models/clothing_item.dart';
+import '../models/fragrance_item.dart';
 import '../models/outfit.dart';
 
 /// Exports all user data to versioned JSON files as a safety net against
@@ -40,12 +41,15 @@ class BackupService {
   static Future<String> exportToJson() async {
     final wardrobeBox = Hive.box<ClothingItem>(AppConstants.wardrobeBoxName);
     final outfitsBox = Hive.box<Outfit>(AppConstants.outfitsBoxName);
+    final fragrancesBox =
+        Hive.box<FragranceItem>(AppConstants.fragrancesBoxName);
 
     final payload = {
       'backupFormatVersion': _backupFormatVersion,
       'exportedAt': DateTime.now().toIso8601String(),
       'itemCount': wardrobeBox.length,
       'outfitCount': outfitsBox.length,
+      'fragranceCount': fragrancesBox.length,
       'wardrobe': [
         for (final item in wardrobeBox.values)
           {
@@ -65,6 +69,15 @@ class BackupService {
             'itemIds': outfit.itemIds,
             'photoPaths': outfit.photoPaths,
             'outfitType': outfit.outfitType,
+          },
+      ],
+      'fragrances': [
+        for (final fragrance in fragrancesBox.values)
+          {
+            'id': fragrance.id,
+            'name': fragrance.name,
+            'brand': fragrance.brand,
+            'photoPath': fragrance.photoPath,
           },
       ],
     };

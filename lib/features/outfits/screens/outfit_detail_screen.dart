@@ -89,6 +89,8 @@ class _OutfitDetailScreenState extends ConsumerState<OutfitDetailScreen> {
                       File(outfit.photoPaths[i]),
                       fit: BoxFit.cover,
                       width: double.infinity,
+                      errorBuilder: (_, _, _) =>
+                          Container(color: Colors.grey[200]),
                     ),
                   ),
 
@@ -206,6 +208,13 @@ class _OutfitDetailScreenState extends ConsumerState<OutfitDetailScreen> {
                                       ? Image.file(
                                           File(item.photoPath!),
                                           fit: BoxFit.cover,
+                                          errorBuilder: (_, _, _) =>
+                                              Container(
+                                            color: Colors.grey[100],
+                                            child: const Icon(
+                                                Icons.checkroom_outlined,
+                                                size: 36),
+                                          ),
                                         )
                                       : Container(
                                           color: Colors.grey[100],

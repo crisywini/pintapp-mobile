@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/clothing_item.dart';
+import '../../../shared/widgets/speed_dial_fab.dart';
 import '../providers/wardrobe_provider.dart';
 import '../widgets/item_card.dart';
 
@@ -19,16 +20,6 @@ class WardrobeScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mi Pinta'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: IconButton(
-              icon: const Icon(Icons.add),
-              tooltip: 'Add item',
-              onPressed: () => context.push('/wardrobe/add'),
-            ),
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -83,10 +74,19 @@ class WardrobeScreen extends ConsumerWidget {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push('/wardrobe/add'),
-        tooltip: 'Add item',
-        child: const Icon(Icons.add),
+      floatingActionButton: SpeedDialFab(
+        children: [
+          SpeedDialChild(
+            icon: Icons.checkroom,
+            label: 'Ropa',
+            onTap: () => context.push('/wardrobe/add'),
+          ),
+          SpeedDialChild(
+            icon: Icons.water_drop,
+            label: 'Fragancia',
+            onTap: () => context.push('/fragrances/add'),
+          ),
+        ],
       ),
     );
   }
