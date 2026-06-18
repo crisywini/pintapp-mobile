@@ -294,12 +294,10 @@ class _CreateOutfitScreenState extends ConsumerState<CreateOutfitScreen> {
           ),
           const SizedBox(height: 12),
           ...requiredCats.map(
-            (cat) => _OutfitSlotCard(
+            (cat) => _RequiredSlotCard(
+              key: ValueKey('carousel_$cat'),
               category: cat,
-              items: draft.slots[cat] ?? [],
-              onAdd: () => _pickItem(cat),
-              onRemove: (index) =>
-                  ref.read(draftOutfitProvider.notifier).removeItemFromSlot(cat, index),
+              allItems: ref.watch(itemsByCategoryProvider(cat)),
             ),
           ),
 
@@ -940,6 +938,280 @@ class _PhotoThumb extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ── Required slot carousel ────────────────────────────────────────────────────
+// Shows ALL wardrobe items for the category in a carousel.
+// Whichever item is currently visible is the one selected for the outfit.
+
+class _RequiredSlotCard extends ConsumerStatefulWidget {
+  final String category;
+  final List<ClothingItem> allItems;
+
+  const _RequiredSlotCard({
+    super.key,
+    required this.category,
+    required this.allItems,
+  });
+
+  @override
+  ConsumerState<_RequiredSlotCard> createState() => _RequiredSlotCardState();
+}
+
+class _RequiredSlotCardState extends ConsumerState<_RequiredSlotCard> {
+  late PageController _pageController;
+  int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // In edit mode, start at the item that was previously saved for this slot.
+    final selected =
+        ref.read(draftOutfitProvider).slots[widget.category];
+    int initialPage = 0;
+    if (selected != null &&
+        selected.isNotEmpty &&
+        widget.allItems.isNotEmpty) {
+      final idx =
+          widget.allItems.indexWhere((i) => i.id == selected.first.id);
+      if (idx >= 0) initialPage = idx;
+    }
+
+    _currentPage = initialPage;
+    _pageController = PageController(initialPage: initialPage);
+
+    // Register the initial visible item as the selection.
+    if (widget.allItems.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref
+              .read(draftOutfitProvider.notifier)
+              .setSlotItem(widget.allItems[initialPage]);
+        }
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(_RequiredSlotCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.allItems != oldWidget.allItems &&
+        widget.allItems.isNotEmpty &&
+        _currentPage >= widget.allItems.length) {
+      final clamped = widget.allItems.length - 1;
+      setState(() => _currentPage = clamped);
+      _pageController.jumpToPage(clamped);
+      ref
+          .read(draftOutfitProvider.notifier)
+          .setSlotItem(widget.allItems[clamped]);
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _onPageChanged(int page) {
+    setState(() => _currentPage = page);
+    ref
+        .read(draftOutfitProvider.notifier)
+        .setSlotItem(widget.allItems[page]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: widget.allItems.isEmpty
+          ? _buildEmpty()
+          : _buildCarousel(),
+    );
+  }
+
+  Widget _buildEmpty() {
+    return Container(
+      height: 160,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey[300]!, width: 1.5),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.checkroom_outlined, size: 32, color: Colors.grey[300]),
+          const SizedBox(height: 6),
+          Text(
+            'No ${widget.category} in wardrobe yet',
+            style: Theme.of(context)
+                .textTheme
+                .bodyMedium
+                ?.copyWith(color: Colors.grey[400]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCarousel() {
+    final items = widget.allItems;
+    final showArrows = items.length > 1;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        children: [
+          // Category label + "X / N" counter
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+            child: Row(
+              children: [
+                Text(
+                  widget.category,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                const Spacer(),
+                Text(
+                  '${_currentPage + 1} / ${items.length}',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: Colors.grey[400]),
+                ),
+              ],
+            ),
+          ),
+
+          // Left arrow | PageView | Right arrow
+          SizedBox(
+            height: 150,
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 36,
+                  child: showArrows && _currentPage > 0
+                      ? IconButton(
+                          icon: const Icon(Icons.chevron_left),
+                          onPressed: () => _pageController.previousPage(
+                            duration: const Duration(milliseconds: 250),
+                            curve: Curves.easeInOut,
+                          ),
+                        )
+                      : null,
+                ),
+
+                Expanded(
+                  child: PageView.builder(
+                    controller: _pageController,
+                    itemCount: items.length,
+                    onPageChanged: _onPageChanged,
+                    itemBuilder: (_, i) {
+                      final item = items[i];
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: SizedBox(
+                                  width: 100,
+                                  height: 100,
+                                  child: item.photoPath != null
+                                      ? Image.file(
+                                          File(item.photoPath!),
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, _, _) =>
+                                              Container(
+                                            color: Colors.grey[100],
+                                            child: const Icon(
+                                                Icons.checkroom_outlined),
+                                          ),
+                                        )
+                                      : Container(
+                                          color: Colors.grey[100],
+                                          child: const Icon(
+                                              Icons.checkroom_outlined),
+                                        ),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                item.name,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                        fontWeight: FontWeight.w500),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+                SizedBox(
+                  width: 36,
+                  child: showArrows && _currentPage < items.length - 1
+                      ? IconButton(
+                          icon: const Icon(Icons.chevron_right),
+                          onPressed: () => _pageController.nextPage(
+                            duration: const Duration(milliseconds: 250),
+                            curve: Curves.easeInOut,
+                          ),
+                        )
+                      : null,
+                ),
+              ],
+            ),
+          ),
+
+          // Dot indicators (only when few enough items to display cleanly)
+          if (showArrows && items.length <= 10)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(items.length, (i) {
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: i == _currentPage ? 10 : 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: i == _currentPage
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.grey[300],
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  );
+                }),
+              ),
+            )
+          else
+            const SizedBox(height: 10),
+        ],
+      ),
     );
   }
 }

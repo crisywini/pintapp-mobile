@@ -73,37 +73,48 @@ class _SpeedDialFabState extends State<SpeedDialFab>
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      alignment: Alignment.bottomRight,
-      children: [
-        // Dismiss overlay when open
-        if (_isOpen)
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: _toggle,
-              child: Container(color: Colors.transparent),
-            ),
-          ),
+    // Each mini FAB slot is 48 px tall + 16 px gap.
+    // The Stack must be tall enough to contain all of them so Flutter's
+    // hit-testing can reach their tap areas (overflow children are visible
+    // but not hittable when outside the Stack's own bounds).
+    final double stackHeight =
+        56 + 16 + (48 + 16) * widget.children.length.toDouble();
 
-        // Mini FABs (rendered bottom-to-top so they stack correctly)
-        ..._buildMiniFabs(),
-
-        // Main FAB
-        AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            return FloatingActionButton(
-              backgroundColor: _colorAnim.value,
-              onPressed: _toggle,
-              child: RotationTransition(
-                turns: _rotationAnim,
-                child: const Icon(Icons.add, color: Colors.white),
+    return SizedBox(
+      width: 220,
+      height: stackHeight,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.bottomRight,
+        children: [
+          // Dismiss overlay when open
+          if (_isOpen)
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: _toggle,
+                child: Container(color: Colors.transparent),
               ),
-            );
-          },
-        ),
-      ],
+            ),
+
+          // Mini FABs (rendered bottom-to-top so they stack correctly)
+          ..._buildMiniFabs(),
+
+          // Main FAB
+          AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) {
+              return FloatingActionButton(
+                backgroundColor: _colorAnim.value,
+                onPressed: _toggle,
+                child: RotationTransition(
+                  turns: _rotationAnim,
+                  child: const Icon(Icons.add, color: Colors.white),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -135,11 +146,13 @@ class _SpeedDialFabState extends State<SpeedDialFab>
       return Positioned(
         bottom: bottomOffset,
         right: 0,
-        child: FadeTransition(
-          opacity: curvedAnim,
-          child: SlideTransition(
-            position: slideAnim,
-            child: Row(
+        child: IgnorePointer(
+          ignoring: !_isOpen,
+          child: FadeTransition(
+            opacity: curvedAnim,
+            child: SlideTransition(
+              position: slideAnim,
+              child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 // Label chip
@@ -182,6 +195,7 @@ class _SpeedDialFabState extends State<SpeedDialFab>
               ],
             ),
           ),
+        ),
         ),
       );
     });

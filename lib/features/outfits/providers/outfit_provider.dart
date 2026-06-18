@@ -141,6 +141,15 @@ class DraftOutfitNotifier extends Notifier<DraftOutfitState> {
     state = state.copyWith(slots: updated);
   }
 
+  // Sets exactly one item for a slot (used by required-slot carousels).
+  void setSlotItem(ClothingItem item) {
+    final updated = Map<String, List<ClothingItem>>.from(
+      state.slots.map((k, v) => MapEntry(k, List<ClothingItem>.from(v))),
+    );
+    updated[item.category] = [item];
+    state = state.copyWith(slots: updated);
+  }
+
   void removeItemFromSlot(String category, int index) {
     final updated = Map<String, List<ClothingItem>>.from(
       state.slots.map((k, v) => MapEntry(k, List<ClothingItem>.from(v))),
